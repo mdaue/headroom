@@ -5,9 +5,10 @@ SHELL := /bin/bash
 CARGO ?= cargo
 MATURIN ?= maturin
 PYTHON ?= python3
+PIPX ?= pipx
 FIXTURES ?= tests/parity/fixtures
 
-.PHONY: help test test-parity bench build-proxy build-wheel fmt fmt-check lint clippy clean ci-precheck ci-precheck-rust ci-precheck-python ci-precheck-commitlint install-git-hooks verify-rust-core
+.PHONY: help test test-parity bench build-proxy build-wheel fmt fmt-check lint clippy clean ci-precheck ci-precheck-rust ci-precheck-python ci-precheck-commitlint install-git-hooks verify-rust-core install
 
 help:
 	@echo "Headroom Rust targets:"
@@ -17,6 +18,7 @@ help:
 	@echo "  make build-proxy        - release build + strip headroom-proxy, print size"
 	@echo "  make build-wheel        - release wheel for headroom-py"
 	@echo "  make verify-rust-core   - build + install + import-verify headroom._core"
+	@echo "  make install            - pipx install this checkout as the global 'headroom' binary"
 	@echo "  make fmt                - cargo fmt --all"
 	@echo "  make fmt-check          - cargo fmt --all -- --check"
 	@echo "  make lint               - cargo clippy --workspace -- -D warnings"
@@ -56,6 +58,17 @@ build-proxy:
 
 build-wheel:
 	$(MATURIN) build --release -m crates/headroom-py/Cargo.toml
+
+# Install this checkout as the global `headroom` CLI via pipx, in an isolated
+# venv separate from any project venv. --force reinstalls over a prior copy
+# so `make install` is safe to re-run after pulling new changes.
+install:
+	@if ! command -v $(PIPX) >/dev/null 2>&1; then \
+		echo "error: pipx not on PATH (install with 'python3 -m pip install --user pipx')"; \
+		exit 1; \
+	fi
+	$(PIPX) install --force .
+	@echo "✅ installed 'headroom' globally via pipx — run 'headroom --help' to verify"
 
 # Hotfix-A0: maturin-develop + symlink + import-verify in one shot. Run this
 # any time you suspect the proxy is silently falling back to Python-only
