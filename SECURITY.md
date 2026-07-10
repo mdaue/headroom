@@ -62,4 +62,15 @@ Headroom includes several security features:
 - **Input validation**: All inputs are validated before processing
 - **Safe defaults**: Security-conscious defaults out of the box
 
+## Security Audit History
+
+### 2026-07-10 — Internal code review (commit `5e14b8c0f293df78f2576a9fc7eb90189e604cb5`)
+
+- **Scope**: Full-repository review for reverse shells, malicious code/logic, and data-exfiltration indicators (not a diff/PR review).
+- **Result**: No malicious code found. Command execution throughout the hook/wrap install path uses list-argv `subprocess` calls (no `shell=True`, no `eval`/`exec`/`os.system` on untrusted input); proxy egress is limited to the configured upstream LLM provider or user-specified endpoints; telemetry is opt-out-able and sends only aggregate/hashed stats, never prompt content or credentials; no hidden persistence, credential harvesting, or obfuscated payloads were found.
+- **Hardening notes (not vulnerabilities)**:
+  - The companion `rtk` binary (fetched from GitHub releases via `headroom/rtk/installer.py`) and the Docker image pulled by `scripts/install.sh` are not checksum/signature-verified before execution — integrity currently relies on HTTPS/registry trust.
+  - Optional "Cloud mode" (enabled by setting `HEADROOM_API_KEY`) sends full message content to `api.headroomlabs.ai`; this is documented and disabled by default.
+- Reviewed by: Claude Code, automated audit commissioned by mdaue@rapta.ai.
+
 Thank you for helping keep Headroom and its users safe!
