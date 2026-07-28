@@ -103,6 +103,33 @@ def test_get_server_reads_modern_config(tmp_path: Path) -> None:
     assert got.env == {"HEADROOM_PROXY_URL": "http://127.0.0.1:9000"}
 
 
+def test_get_server_prefers_active_user_config_over_stale_secondary(tmp_path: Path) -> None:
+    active = tmp_path / ".claude.json"
+    active.write_text(
+        json.dumps({"mcpServers": {"headroom": {"command": "headroom", "args": ["mcp", "serve"]}}})
+    )
+    stale = tmp_path / ".claude" / ".claude.json"
+    stale.parent.mkdir()
+    stale.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "headroom": {
+                        "command": "/old/headroom",
+                        "args": ["mcp", "serve"],
+                    }
+                }
+            }
+        )
+    )
+
+    reg = _make_registrar(tmp_path, cli=None)
+    got = reg.get_server("headroom")
+
+    assert got is not None
+    assert got.command == "headroom"
+
+
 def test_get_server_falls_back_to_legacy(tmp_path: Path) -> None:
     cfg = tmp_path / ".claude" / "mcp.json"
     cfg.parent.mkdir()
@@ -337,6 +364,45 @@ def test_register_force_overwrites_mismatch(tmp_path: Path) -> None:
     cmds = [call.args[0] for call in run_mock.call_args_list]
     assert any("remove" in c for c in cmds)
     assert any("add" in c for c in cmds)
+
+
+def test_register_force_removes_stale_secondary_config(tmp_path: Path) -> None:
+    active = tmp_path / ".claude.json"
+    active.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "headroom": {
+                        "command": "headroom-old",
+                        "args": ["mcp", "serve"],
+                    }
+                }
+            }
+        )
+    )
+    stale = tmp_path / ".claude" / ".claude.json"
+    stale.parent.mkdir()
+    stale.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "headroom": {
+                        "command": "/old/headroom",
+                        "args": ["mcp", "serve"],
+                    }
+                }
+            }
+        )
+    )
+
+    reg = _make_registrar(tmp_path, cli="/usr/local/bin/claude")
+    fake_ok = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    with patch("subprocess.run", return_value=fake_ok):
+        result = reg.register_server(_spec(), force=True)
+
+    assert result.status == RegisterStatus.REGISTERED
+    assert "headroom" not in json.loads(active.read_text())["mcpServers"]
+    assert "headroom" not in json.loads(stale.read_text())["mcpServers"]
 
 
 # ----------------------------------------------------------------------
